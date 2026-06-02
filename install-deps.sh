@@ -22,6 +22,7 @@ packages=(
     gawk
     gcc
     kmod
+    libdw-dev
     libelf-dev
     libiberty-dev
     libncurses-dev
