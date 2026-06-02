@@ -31,8 +31,20 @@ tar -xvzf "linux-$v_full.tar.gz"
 cp config "linux-$v_full/.config"
 cd "linux-$v_full"
 for patch in ../*.patch; do
+    case "$(basename "$patch")" in
+        0002-bbr3.patch)
+            if [ "$(echo "$v_full" | cut -d. -f1)" -ge 7 ]; then
+                echo "Skipping obsolete patch for Linux $v_full: $patch"
+                continue
+            fi
+            ;;
+        0010-bore-cachy-fix.patch)
+            echo "Skipping redundant patch: $patch"
+            continue
+            ;;
+    esac
     echo "Applying patch: $patch"
-    patch -Np1 < "$patch"
+    patch --batch -Np1 < "$patch"
 done
 
 # kernel build
