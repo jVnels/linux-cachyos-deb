@@ -2590,7 +2590,7 @@ index e2ebfbf107b3..8ad3711dbb90 100644
  	 * For single queue devices, default to using mq-deadline. If we
  	 * have multiple queues or mq-deadline is not available, default
 @@ -762,13 +777,10 @@ void elevator_set_default(struct request_queue *q)
- 	if (!e)
+ 	if (!ctx.type)
  		return;
  
 -	if ((q->nr_hw_queues == 1 ||
@@ -2604,7 +2604,7 @@ index e2ebfbf107b3..8ad3711dbb90 100644
 +	if (err < 0)
 +		pr_warn("\"%s\" elevator initialization, failed %d, falling back to \"none\"\n",
 +				ctx.name, err);
- 	elevator_put(e);
+ 	elevator_put(ctx.type);
  }
  
 diff --git a/drivers/Makefile b/drivers/Makefile
@@ -2902,22 +2902,6 @@ index 70065c41e923..3758eee890dc 100644
  			break;
  		default:
  			return -EINVAL;
-@@ -2951,7 +2954,14 @@ static int smu_set_power_limit(void *handle, uint32_t limit)
- 		if (smu->ppt_funcs->set_power_limit)
- 			return smu->ppt_funcs->set_power_limit(smu, limit_type, limit);
- 
--	if ((limit > smu->max_power_limit) || (limit < smu->min_power_limit)) {
-+	if (amdgpu_ignore_min_pcap) {
-+		if ((limit > smu->max_power_limit)) {
-+			dev_err(smu->adev->dev,
-+				"New power limit (%d) is over the max allowed %d\n",
-+				limit, smu->max_power_limit);
-+			return -EINVAL;
-+		}
-+	} else if ((limit > smu->max_power_limit) || (limit < smu->min_power_limit)) {
- 		dev_err(smu->adev->dev,
- 			"New power limit (%d) is out of range [%d,%d]\n",
- 			limit, smu->min_power_limit, smu->max_power_limit);
 diff --git a/drivers/input/evdev.c b/drivers/input/evdev.c
 index 90ff6be85cf4..15159c1cf6e1 100644
 --- a/drivers/input/evdev.c
@@ -8849,16 +8833,14 @@ diff --git a/kernel/fork.c b/kernel/fork.c
 index bb86c57cc0d9..1db319e89543 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
-@@ -107,6 +107,10 @@
- #include <linux/tick.h>
- #include <linux/unwind_deferred.h>
+@@ -110,4 +110,8 @@
+ #include <linux/pgalloc.h>
+ #include <linux/uaccess.h>
  
 +#ifdef CONFIG_USER_NS
 +#include <linux/user_namespace.h>
 +#endif
 +
- #include <asm/pgalloc.h>
- #include <linux/uaccess.h>
  #include <asm/mmu_context.h>
 @@ -1938,6 +1942,10 @@ __latent_entropy struct task_struct *copy_process(
  	if ((clone_flags & (CLONE_NEWUSER|CLONE_FS)) == (CLONE_NEWUSER|CLONE_FS))
@@ -8910,17 +8892,19 @@ diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
 index 434df3fb6c44..e91a8078c5ad 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
-@@ -76,10 +76,19 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
-  *
-  * (default: 0.70 msec * (1 + ilog(ncpus)), units: nanoseconds)
+@@ -85,14 +85,21 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
+  * (default min_base_slice = 2000000 constant, units: nanoseconds)
+  * EEVDF: default 0.70 msec * (1 + ilog(ncpus)), units: nanoseconds
   */
-+#ifdef CONFIG_CACHY
+ #ifdef CONFIG_SCHED_BORE
+ __read_mostly uint sysctl_sched_base_slice		= 1000000000ULL / HZ;
++#elif defined(CONFIG_CACHY)
 +unsigned int sysctl_sched_base_slice			= 350000ULL;
 +static unsigned int normalized_sysctl_sched_base_slice	= 350000ULL;
-+#else
+ #else /* !CONFIG_SCHED_BORE */
  unsigned int sysctl_sched_base_slice			= 700000ULL;
  static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
-+#endif /* CONFIG_CACHY */
+ #endif /* CONFIG_SCHED_BORE */
  
 +#ifdef CONFIG_CACHY
 +__read_mostly unsigned int sysctl_sched_migration_cost	= 300000UL;
@@ -9180,7 +9164,7 @@ diff --git a/mm/swap.c b/mm/swap.c
 index b74ebe865dd9..cc881058efe0 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
-@@ -1098,6 +1098,10 @@ static const struct ctl_table swap_sysctl_table[] = {
+@@ -1098,11 +1098,16 @@ static const struct ctl_table swap_sysctl_table[] = {
   */
  void __init swap_setup(void)
  {
@@ -9188,10 +9172,10 @@ index b74ebe865dd9..cc881058efe0 100644
 +	/* Only swap-in pages requested, avoid readahead */
 +	page_cluster = 0;
 +#else
- 	unsigned long megs = totalram_pages() >> (20 - PAGE_SHIFT);
+ 	unsigned long megs = PAGES_TO_MB(totalram_pages());
  
  	/* Use a smaller cluster for small-memory machines */
-@@ -1105,6 +1109,7 @@ void __init swap_setup(void)
+ 	if (megs < 16)
  		page_cluster = 2;
  	else
  		page_cluster = 3;
@@ -9690,4 +9674,3 @@ index 5ca7c268294e..8b01746c9ce6 100644
  		return;
 -- 
 2.52.0
-

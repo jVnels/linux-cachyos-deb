@@ -5,10 +5,9 @@ Subject: [PATCH 5/5] fixes
 
 Signed-off-by: Peter Jung <admin@ptr1337.dev>
 ---
- arch/x86/kernel/cpu/amd.c                |  6 ++++++
- drivers/gpu/drm/i915/display/intel_psr.c | 12 ++++++++++--
- scripts/package/PKGBUILD                 |  5 +++++
- 3 files changed, 21 insertions(+), 2 deletions(-)
+ arch/x86/kernel/cpu/amd.c |  6 ++++++
+ scripts/package/PKGBUILD  |  5 +++++
+ 2 files changed, 11 insertions(+)
 
 diff --git a/arch/x86/kernel/cpu/amd.c b/arch/x86/kernel/cpu/amd.c
 index 9390312c93b6..5b343e853313 100644
@@ -34,40 +33,6 @@ index 9390312c93b6..5b343e853313 100644
  
  static void init_amd(struct cpuinfo_x86 *c)
  {
-diff --git a/drivers/gpu/drm/i915/display/intel_psr.c b/drivers/gpu/drm/i915/display/intel_psr.c
-index 624f4985ea46..8e83e71eb31b 100644
---- a/drivers/gpu/drm/i915/display/intel_psr.c
-+++ b/drivers/gpu/drm/i915/display/intel_psr.c
-@@ -3373,6 +3373,7 @@ static void _psr_flush_handle(struct intel_dp *intel_dp)
- 	struct intel_display *display = to_intel_display(intel_dp);
- 
- 	if (DISPLAY_VER(display) < 20 && intel_dp->psr.psr2_sel_fetch_enabled) {
-+		/* Selective fetch prior LNL */
- 		if (intel_dp->psr.psr2_sel_fetch_cff_enabled) {
- 			/* can we turn CFF off? */
- 			if (intel_dp->psr.busy_frontbuffer_bits == 0)
-@@ -3391,12 +3392,19 @@ static void _psr_flush_handle(struct intel_dp *intel_dp)
- 		intel_psr_configure_full_frame_update(intel_dp);
- 
- 		intel_psr_force_update(intel_dp);
-+	} else if (!intel_dp->psr.psr2_sel_fetch_enabled) {
-+		/*
-+		 * PSR1 on all platforms
-+		 * PSR2 HW tracking
-+		 * Panel Replay Full frame update
-+		 */
-+		intel_psr_force_update(intel_dp);
- 	} else {
-+		/* Selective update LNL onwards */
- 		intel_psr_exit(intel_dp);
- 	}
- 
--	if ((!intel_dp->psr.psr2_sel_fetch_enabled || DISPLAY_VER(display) >= 20) &&
--	    !intel_dp->psr.busy_frontbuffer_bits)
-+	if (!intel_dp->psr.active && !intel_dp->psr.busy_frontbuffer_bits)
- 		queue_work(display->wq.unordered, &intel_dp->psr.work);
- }
- 
 diff --git a/scripts/package/PKGBUILD b/scripts/package/PKGBUILD
 index 452374d63c24..08f80d7c5df0 100644
 --- a/scripts/package/PKGBUILD
@@ -86,4 +51,3 @@ index 452374d63c24..08f80d7c5df0 100644
  	cp System.map "${builddir}/System.map"
 -- 
 2.52.0
-
